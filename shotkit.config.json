@@ -1,0 +1,15 @@
+{
+  "storeIds": ["appstore-iphone-69", "appstore-ipad-13", "play-phone"],
+  "theme": {
+    "fontFamily": "Montserrat",
+    "weightLine1": 600,
+    "weightLine2": 700,
+    "headlineColor": "#F8FAFF",
+    "gradient": ["#AEE4FF", "#F4FBFF"],
+    "background": { "kind": "synthetic", "from": "#5CA8FF", "to": "#1C46DE", "glow": "rgba(150,200,255,0.30)", "grain": 7 }
+  },
+  "slides": [
+    { "id": "01-home",  "screenshot": "assets/examples/home.png",  "headline": { "line1": "YOUR NEXT LESSON", "line2": "READY EVERY DAY" } },
+    { "id": "02-vocab", "screenshot": "assets/examples/vocab.png", "headline": { "line1": "BEAT THE", "line2": "FORGETTING CURVE" } }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "name": "flowent-shotkit",
+  "version": "0.1.0",
+  "description": "Turn raw app screenshots into store-ready App Store / Google Play kits. Deterministic TypeScript renderer + optional AI director.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Abdalla",
+  "keywords": ["app-store", "google-play", "screenshots", "release", "canvas", "marketing", "automation"],
+  "repository": { "type": "git", "url": "https://github.com/USERNAME/flowent-shotkit.git" },
+  "bin": { "shotkit": "./dist/cli.js" },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "assets", "docs", "README.md", "LICENSE"],
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "render": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsup"
+  },
+  "dependencies": { "@napi-rs/canvas": "^0.1.65" },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tsup": "^8.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.3.0"
+  }
+}
