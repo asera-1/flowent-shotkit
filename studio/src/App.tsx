@@ -3,7 +3,7 @@ import JSZip from 'jszip'
 import { renderSlide } from '@engine/compose'
 import { allTargets } from '@engine/targets'
 import type { Slide, StoreTarget, Theme } from '@engine/types'
-import { DeterministicDirector, OpenAIDirector } from '@engine/director'
+import { DeterministicDirector, OpenAIDirector, localizeHeadlines } from '@engine/director'
 import { renderTemplateSlide } from '@engine/template'
 import { buildContactSheet } from '@engine/contactsheet'
 import type { RenderTarget } from '@engine/render-target'
@@ -45,6 +45,8 @@ export function App() {
   const [safeArea, setSafeArea] = useState(false)
   const [aiKey, setAiKey] = useState<string>(() => { try { return localStorage.getItem('shotkit.aiKey') || '' } catch { return '' } })
   const aiModel = 'gpt-4o-mini'
+  const [variants, setVariants] = useState<string[]>([])
+  const [locales, setLocales] = useState('')
   const [busy, setBusy] = useState('')
   const previewRef = useRef<HTMLCanvasElement>(null)
   const tokenRef = useRef(0)
@@ -142,7 +144,8 @@ export function App() {
 
   async function exportZip() {
     if (!slides.length || !enabled.length) return
-    setBusy('Rendering kit…')
+    const locs = locales.split(',').map((x) => x.trim()).filter(Boolean)
+    setBusy(locs.length && aiKey.trim() ? 'Translating + rendering…' : 'Rendering kit…')
     const zip = new JSZip()
     const sheetItems: { label: string; target: RenderTarget }[] = []
     const manifest: any = { generatedAt: new Date().toISOString(), files: [] as any[] }
@@ -153,14 +156,34 @@ export function App() {
         sheetItems.push({ label: s.id, target })
         manifest.files.push({ store: 'template', slide: s.id, file: `template/${s.id}.png` })
       }
+    } else if (locs.length && aiKey.trim()) {
+      const tr = await localizeHeadlines(slides.map((s) => ({ id: s.id, line1: s.line1, line2: s.line2 })), locs, { apiKey: aiKey.trim(), model: aiModel })
+      for (const loc of locs) {
+        for (const id of enabled) {
+          const st = allTargets.find((t) => t.id === id)!
+          for (const s of slides) {
+            const h = tr[loc]?.[s.id] ?? { line1: s.line1, line2: s.line2 }
+            const eng = { id: s.id, screenshot: s.url, headline: h }
+            const target = await renderSlide(renderer, { theme, stores: [st], slides: [eng] }, eng, st)
+            zip.file(`${loc}/${st.folder}/${s.id}.png`, await targetBlob(target))
+            sheetItems.push({ label: `${loc} · ${st.label} ${s.id}`, target })
+            manifest.files.push({ locale: loc, store: id, slide: s.id, file: `${loc}/${st.folder}/${s.id}.png` })
+          }
+        }
+      }
     } else {
-      for (const id of enabled) {
-        const st = allTargets.find((t) => t.id === id)!
-        for (const s of slides) {
-          const target = await renderSlide(renderer, { theme, stores: [st], slides: [toEngine(s)] }, toEngine(s), st)
-          zip.file(`${st.folder}/${s.id}.png`, await targetBlob(target))
-          sheetItems.push({ label: `${st.label} ${s.id}`, target })
-          manifest.files.push({ store: id, slide: s.id, file: `${st.folder}/${s.id}.png` })
+      const variantKeys = variants.length ? variants : [themeKey]
+      for (const vk of variantKeys) {
+        const vtheme: Theme = { ...PRESET_BY_KEY[vk].theme, layout }
+        const prefix = variants.length ? `variant-${vk}/` : ''
+        for (const id of enabled) {
+          const st = allTargets.find((t) => t.id === id)!
+          for (const s of slides) {
+            const target = await renderSlide(renderer, { theme: vtheme, stores: [st], slides: [toEngine(s)] }, toEngine(s), st)
+            zip.file(`${prefix}${st.folder}/${s.id}.png`, await targetBlob(target))
+            sheetItems.push({ label: `${variants.length ? vk + ' · ' : ''}${st.label} ${s.id}`, target })
+            manifest.files.push({ variant: vk, store: id, slide: s.id, file: `${prefix}${st.folder}/${s.id}.png` })
+          }
         }
       }
     }
@@ -243,6 +266,11 @@ export function App() {
                 <input type="password" placeholder="sk-…  reads your screens, writes headlines" value={aiKey} onChange={(e) => setAiKey(e.target.value)} />
               </div>
               <div className="muted">With a key, ✨ Auto-headlines uses a vision model on your screenshots. Blank = offline templates. Stored only in your browser.</div>
+              <div className="field" style={{ marginTop: 10, marginBottom: 4 }}>
+                <label>Languages — comma separated (needs a key)</label>
+                <input placeholder="de, es, fr, it" value={locales} onChange={(e) => setLocales(e.target.value)} />
+              </div>
+              <div className="muted">On Export, headlines are translated per language and rendered into per-locale folders.</div>
             </div>
             <div className="muted" style={{ marginTop: 6 }}>Maps each screen to an on-brand headline. Offline now; swap in a vision model for full auto-writing.</div>
           </div>
@@ -269,6 +297,19 @@ export function App() {
                   onClick={() => setThemeKey(p.key)}>
                   <span style={{ color: p.theme.headlineColor }}>{p.label}</span>
                 </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="section">
+            <h3>A/B variants</h3>
+            <div className="muted" style={{ marginBottom: 8 }}>Export the kit under several themes to test in Apple PPO / Play experiments. Off = active theme only.</div>
+            <div className="stores">
+              {PRESETS.map((p) => (
+                <label key={p.key} className="check">
+                  <input type="checkbox" checked={variants.includes(p.key)} onChange={(e) => setVariants((cur) => e.target.checked ? [...new Set([...cur, p.key])] : cur.filter((x) => x !== p.key))} />
+                  <span>{p.label}</span>
+                </label>
               ))}
             </div>
           </div>

@@ -51,10 +51,10 @@ build order is at the bottom. See `IMPROVEMENTS.md` for the competitive rational
 - ⬜ Multiple options per screen + regenerate; AI theme suggestion; AI critique `[K]`
 
 ## 7. Localization
-- ⬜ Translate the headline set per locale `[K]`
+- ✅ Translate the headline set per locale (BYOK) `[K]`
 - ⬜ Auto text-fit per locale + overflow warnings `[C]`
 - ⬜ Locale-specific screenshot swap; RTL (Arabic/Hebrew) `[C]`
-- ⬜ Render all localized kits in one pass `[C]`
+- ✅ Render all localized kits in one pass `[C]`
 
 ## 8. Export & store targets
 - ✅ ZIP + `manifest.json`, organized by store `[C]`
@@ -67,7 +67,7 @@ build order is at the bottom. See `IMPROVEMENTS.md` for the competitive rational
 - ⬜ App-preview video export (canvas → WebM) `[C]`
 
 ## 9. ASO / optimization
-- ⬜ A/B variant sets (2–3 per screen) for Apple PPO + Play experiments `[C]`
+- ✅ A/B variant sets (export under several themes) for Apple PPO + Play experiments `[C]`
 - ⬜ First-3-screens emphasis + thumbnail preview `[C]`
 - ⬜ Best-practice linter: caption length, contrast ratio, safe area `[C]`
 - ⬜ Competitor reference board `[C]`

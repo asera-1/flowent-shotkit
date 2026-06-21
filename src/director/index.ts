@@ -16,3 +16,4 @@ export class LlmDirector implements Director {
 }
 export { OpenAIDirector } from './openai'
 export type { OpenAIOptions } from './openai'
+export { localizeHeadlines } from './openai'

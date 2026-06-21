@@ -61,3 +61,38 @@ export class OpenAIDirector implements Director {
     }
   }
 }
+
+
+function up(s: string): string { return (s || '').toUpperCase() }
+
+// BYOK translation of a headline set into multiple locales (ALL CAPS, length-aware).
+export async function localizeHeadlines(
+  items: { id: string; line1: string; line2: string }[], locales: string[], opts: OpenAIOptions,
+): Promise<Record<string, Record<string, { line1: string; line2: string }>>> {
+  const model = opts.model ?? 'gpt-4o-mini'
+  const system = 'You translate short app-store screenshot headlines. Reply with JSON only.'
+  const user =
+    `Translate these ALL-CAPS two-line headlines into each locale: ${locales.join(', ')}.\n` +
+    `Keep them ALL CAPS, punchy, and roughly the same length to avoid overflow. Do not translate brand or product names.\n` +
+    items.map((it) => `- id "${it.id}": "${it.line1}" / "${it.line2}"`).join('\n') +
+    `\nReturn JSON exactly: {"<locale>": {"<id>": {"line1":"...","line2":"..."}}}`
+  const res = await fetch(`${opts.baseUrl ?? 'https://api.openai.com/v1'}/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${opts.apiKey}` },
+    body: JSON.stringify({ model, temperature: 0.3, response_format: { type: 'json_object' },
+      messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }),
+  })
+  if (!res.ok) throw new Error(`Translation failed (${res.status}): ${await res.text()}`)
+  const data: any = await res.json()
+  const parsed = JSON.parse(data?.choices?.[0]?.message?.content ?? '{}')
+  const out: Record<string, Record<string, { line1: string; line2: string }>> = {}
+  for (const loc of locales) {
+    out[loc] = {}
+    const block = parsed[loc] ?? {}
+    for (const it of items) {
+      const v = block[it.id] ?? {}
+      out[loc][it.id] = { line1: up(String(v.line1 ?? it.line1)), line2: up(String(v.line2 ?? it.line2)) }
+    }
+  }
+  return out
+}
