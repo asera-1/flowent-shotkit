@@ -5,3 +5,4 @@ out
 
 *.log
 push-to-github.cmd
+git-push.cmd

@@ -50,6 +50,8 @@ export interface Slide {
   id: string
   screenshot: string
   headline: { line1: string; line2: string }
+  frame?: string                         // template-faithful: a real device mockup
+  recolor?: { from: string; to: string } // recolor that mockup's background, keep the grain
 }
 
 export interface Project {
