@@ -3,7 +3,7 @@ import JSZip from 'jszip'
 import { renderSlide } from '@engine/compose'
 import { allTargets } from '@engine/targets'
 import type { Slide, StoreTarget, Theme } from '@engine/types'
-import { DeterministicDirector } from '@engine/director'
+import { DeterministicDirector, OpenAIDirector } from '@engine/director'
 import { renderTemplateSlide } from '@engine/template'
 import { buildContactSheet } from '@engine/contactsheet'
 import type { RenderTarget } from '@engine/render-target'
@@ -16,6 +16,12 @@ const slug = (s: string) =>
   s.toLowerCase().replace(/\.[a-z0-9]+$/i, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'slide'
 
 const toEngine = (s: UISlide): Slide => ({ id: s.id, screenshot: s.url, headline: { line1: s.line1, line2: s.line2 } })
+
+function toDataUrl(url: string): Promise<string> {
+  return fetch(url).then((r) => r.blob()).then((b) => new Promise<string>((res, rej) => {
+    const fr = new FileReader(); fr.onload = () => res(fr.result as string); fr.onerror = rej; fr.readAsDataURL(b)
+  }))
+}
 
 function download(blob: Blob, name: string) {
   const a = document.createElement('a')
@@ -37,6 +43,8 @@ export function App() {
   const [templateMode, setTemplateMode] = useState(false)
   const [layout, setLayout] = useState<'headline-top' | 'headline-bottom'>('headline-top')
   const [safeArea, setSafeArea] = useState(false)
+  const [aiKey, setAiKey] = useState<string>(() => { try { return localStorage.getItem('shotkit.aiKey') || '' } catch { return '' } })
+  const aiModel = 'gpt-4o-mini'
   const [busy, setBusy] = useState('')
   const previewRef = useRef<HTMLCanvasElement>(null)
   const tokenRef = useRef(0)
@@ -51,6 +59,7 @@ export function App() {
       : renderSlide(renderer, { theme, stores: [st], slides: [toEngine(s)] }, toEngine(s), st)
 
   useEffect(() => { initFonts().then(() => setFontsReady(true)) }, [])
+  useEffect(() => { try { localStorage.setItem('shotkit.aiKey', aiKey) } catch { /* ignore */ } }, [aiKey])
 
   const addFiles = useCallback((files: FileList | File[]) => {
     const arr = Array.from(files).filter((f) => f.type.startsWith('image/'))
@@ -96,21 +105,32 @@ export function App() {
     setSlides((p) => p.map((s) => (s.id === active.id ? { ...s, ...patch } : s)))
   }
 
-  async function autoHeadlines() {
-    if (!slides.length) return
-    setBusy('Writing headlines…')
-    const dir = new DeterministicDirector()
-    const stores: StoreTarget[] = enabled.map((id) => allTargets.find((t) => t.id === id)!).filter(Boolean)
-    const res = await dir.generate({
-      screenshots: slides.map((s) => ({ id: s.id, image: s.url, label: s.name })),
-      appProfile: { name: 'Flowent' },
-      brandVoice: { tone: 'direct', casing: 'upper', banned: [',', '—'] },
-      stores,
-    })
+  function applyCopy(res: { slides: { screenshotId: string; headline: { line1: string; line2: string } }[] }) {
     setSlides((p) => p.map((s) => {
       const c = res.slides.find((x) => x.screenshotId === s.id)
       return c ? { ...s, line1: c.headline.line1, line2: c.headline.line2 } : s
     }))
+  }
+
+  async function autoHeadlines() {
+    if (!slides.length) return
+    const useAI = !!aiKey.trim()
+    setBusy(useAI ? 'AI is reading your screens…' : 'Writing headlines…')
+    const stores: StoreTarget[] = enabled.map((id) => allTargets.find((t) => t.id === id)!).filter(Boolean)
+    const brandVoice = { tone: 'direct' as const, casing: 'upper' as const, banned: [',', '—'] }
+    try {
+      const screenshots = useAI
+        ? await Promise.all(slides.map(async (s) => ({ id: s.id, image: await toDataUrl(s.url), label: s.name })))
+        : slides.map((s) => ({ id: s.id, image: s.url, label: s.name }))
+      const dir = useAI ? new OpenAIDirector({ apiKey: aiKey.trim(), model: aiModel }) : new DeterministicDirector()
+      applyCopy(await dir.generate({ screenshots, appProfile: { name: 'Flowent' }, brandVoice, stores }))
+    } catch (e: any) {
+      alert('AI generation failed: ' + (e?.message || e) + '\nUsing offline templates instead.')
+      applyCopy(await new DeterministicDirector().generate({
+        screenshots: slides.map((s) => ({ id: s.id, image: s.url, label: s.name })),
+        appProfile: { name: 'Flowent' }, brandVoice, stores,
+      }))
+    }
     setBusy('')
   }
 
@@ -217,6 +237,13 @@ export function App() {
             ) : <div className="muted">Select a screen.</div>}
             <button className="btn block" disabled={!slides.length || !!busy} onClick={autoHeadlines}>✨ Auto-headlines (AI)</button>
             <button className="btn block" style={{ marginTop: 8 }} disabled={!active || !!busy} onClick={downloadActive}>⬇ Download this slide</button>
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
+              <div className="field" style={{ marginBottom: 6 }}>
+                <label>AI key — optional, BYOK</label>
+                <input type="password" placeholder="sk-…  reads your screens, writes headlines" value={aiKey} onChange={(e) => setAiKey(e.target.value)} />
+              </div>
+              <div className="muted">With a key, ✨ Auto-headlines uses a vision model on your screenshots. Blank = offline templates. Stored only in your browser.</div>
+            </div>
             <div className="muted" style={{ marginTop: 6 }}>Maps each screen to an on-brand headline. Offline now; swap in a vision model for full auto-writing.</div>
           </div>
 

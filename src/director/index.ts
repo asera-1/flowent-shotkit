@@ -14,3 +14,5 @@ export class LlmDirector implements Director {
     throw new Error('LlmDirector: provide a VisionClient (BYOK) + brand-voice prompt. See docs/REUSABILITY.md section 12.')
   }
 }
+export { OpenAIDirector } from './openai'
+export type { OpenAIOptions } from './openai'

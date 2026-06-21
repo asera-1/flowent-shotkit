@@ -46,7 +46,7 @@ build order is at the bottom. See `IMPROVEMENTS.md` for the competitive rational
 
 ## 6. AI — the Director
 - ✅ Deterministic Director (label → headline, banned-phrase guardrails) `[C]`
-- ⬜ BYOK vision model: read screens → cohesive headline set + order + theme `[K]`
+- ✅ BYOK vision model (OpenAI-compatible): read screens → cohesive headline set + order `[K]`
 - ⬜ Brand-voice spec UI (tone, casing, banned list) `[C]`
 - ⬜ Multiple options per screen + regenerate; AI theme suggestion; AI critique `[K]`
 
