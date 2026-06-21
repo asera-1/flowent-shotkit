@@ -5,6 +5,8 @@ import { allTargets } from '@engine/targets'
 import type { Slide, StoreTarget, Theme } from '@engine/types'
 import { DeterministicDirector } from '@engine/director'
 import { renderTemplateSlide } from '@engine/template'
+import { buildContactSheet } from '@engine/contactsheet'
+import type { RenderTarget } from '@engine/render-target'
 import { createBrowserRenderer, initFonts, targetBlob, targetCanvas } from './browser-renderer'
 import { PRESETS, PRESET_BY_KEY } from './themes'
 
@@ -33,17 +35,19 @@ export function App() {
   const [activeStore, setActiveStore] = useState<string>(allTargets[0].id)
   const [frameUrl, setFrameUrl] = useState<string | null>(null)
   const [templateMode, setTemplateMode] = useState(false)
+  const [layout, setLayout] = useState<'headline-top' | 'headline-bottom'>('headline-top')
+  const [safeArea, setSafeArea] = useState(false)
   const [busy, setBusy] = useState('')
   const previewRef = useRef<HTMLCanvasElement>(null)
   const tokenRef = useRef(0)
 
-  const theme: Theme = PRESET_BY_KEY[themeKey].theme
+  const theme: Theme = useMemo(() => ({ ...PRESET_BY_KEY[themeKey].theme, layout }), [themeKey, layout])
   const active = slides.find((s) => s.id === activeId) || null
   const store = allTargets.find((t) => t.id === activeStore)!
 
   const renderOne = (s: UISlide, st: StoreTarget) =>
     templateMode && frameUrl
-      ? renderTemplateSlide(renderer, { frame: frameUrl, screenshot: s.url, headline: { line1: s.line1, line2: s.line2 }, theme, recolor: { from: theme.background.from, to: theme.background.to } })
+      ? renderTemplateSlide(renderer, { frame: frameUrl, screenshot: s.url, headline: { line1: s.line1, line2: s.line2 }, theme, recolor: theme.background.kind === 'synthetic' ? { from: theme.background.from, to: theme.background.to } : undefined })
       : renderSlide(renderer, { theme, stores: [st], slides: [toEngine(s)] }, toEngine(s), st)
 
   useEffect(() => { initFonts().then(() => setFontsReady(true)) }, [])
@@ -77,9 +81,15 @@ export function App() {
       const src = targetCanvas(target)
       const dst = previewRef.current!
       dst.width = src.width; dst.height = src.height
-      dst.getContext('2d')!.drawImage(src, 0, 0)
+      const g = dst.getContext('2d')!
+      g.drawImage(src, 0, 0)
+      if (safeArea && !store.featureGraphic) {
+        g.save(); g.strokeStyle = 'rgba(255,90,90,0.7)'; g.setLineDash([14, 10]); g.lineWidth = Math.max(2, dst.width * 0.004)
+        const mx = dst.width * 0.05, my = dst.height * 0.04
+        g.strokeRect(mx, my, dst.width - 2 * mx, dst.height - 2 * my); g.restore()
+      }
     })().catch(console.error)
-  }, [fontsReady, active?.id, active?.line1, active?.line2, themeKey, activeStore, templateMode, frameUrl, renderer, store, theme])
+  }, [fontsReady, active?.id, active?.line1, active?.line2, activeStore, templateMode, frameUrl, safeArea, renderer, store, theme])
 
   function updateActive(patch: Partial<UISlide>) {
     if (!active) return
@@ -104,15 +114,23 @@ export function App() {
     setBusy('')
   }
 
+  async function downloadActive() {
+    if (!active) return
+    const t = await renderOne(active, store)
+    download(await targetBlob(t), `${active.id}-${store.id}.png`)
+  }
+
   async function exportZip() {
     if (!slides.length || !enabled.length) return
     setBusy('Rendering kit…')
     const zip = new JSZip()
+    const sheetItems: { label: string; target: RenderTarget }[] = []
     const manifest: any = { generatedAt: new Date().toISOString(), files: [] as any[] }
     if (templateMode && frameUrl) {
       for (const s of slides) {
         const target = await renderOne(s, store)
         zip.file(`template/${s.id}.png`, await targetBlob(target))
+        sheetItems.push({ label: s.id, target })
         manifest.files.push({ store: 'template', slide: s.id, file: `template/${s.id}.png` })
       }
     } else {
@@ -121,10 +139,12 @@ export function App() {
         for (const s of slides) {
           const target = await renderSlide(renderer, { theme, stores: [st], slides: [toEngine(s)] }, toEngine(s), st)
           zip.file(`${st.folder}/${s.id}.png`, await targetBlob(target))
+          sheetItems.push({ label: `${st.label} ${s.id}`, target })
           manifest.files.push({ store: id, slide: s.id, file: `${st.folder}/${s.id}.png` })
         }
       }
     }
+    if (sheetItems.length) zip.file('_overview.png', await targetBlob(buildContactSheet(renderer, sheetItems)))
     zip.file('manifest.json', JSON.stringify(manifest, null, 2))
     const out = await zip.generateAsync({ type: 'blob' })
     download(out, 'flowent-shotkit-kit.zip')
@@ -196,6 +216,7 @@ export function App() {
               </>
             ) : <div className="muted">Select a screen.</div>}
             <button className="btn block" disabled={!slides.length || !!busy} onClick={autoHeadlines}>✨ Auto-headlines (AI)</button>
+            <button className="btn block" style={{ marginTop: 8 }} disabled={!active || !!busy} onClick={downloadActive}>⬇ Download this slide</button>
             <div className="muted" style={{ marginTop: 6 }}>Maps each screen to an on-brand headline. Offline now; swap in a vision model for full auto-writing.</div>
           </div>
 
@@ -217,12 +238,24 @@ export function App() {
             <div className="swatches">
               {PRESETS.map((p) => (
                 <div key={p.key} className={'swatch' + (p.key === themeKey ? ' active' : '')}
-                  style={{ background: `linear-gradient(135deg, ${p.theme.background.from}, ${p.theme.background.to})` }}
+                  style={{ background: p.theme.background.kind === 'mesh' ? `linear-gradient(135deg, ${p.theme.background.colors.join(', ')})` : `linear-gradient(135deg, ${p.theme.background.from}, ${p.theme.background.to})` }}
                   onClick={() => setThemeKey(p.key)}>
                   <span style={{ color: p.theme.headlineColor }}>{p.label}</span>
                 </div>
               ))}
             </div>
+          </div>
+
+          <div className="section">
+            <h3>Layout</h3>
+            <div className="row">
+              <button className={'tab' + (layout === 'headline-top' ? ' active' : '')} onClick={() => setLayout('headline-top')}>Headline top</button>
+              <button className={'tab' + (layout === 'headline-bottom' ? ' active' : '')} onClick={() => setLayout('headline-bottom')}>Headline bottom</button>
+            </div>
+            <label className="check" style={{ marginTop: 10 }}>
+              <input type="checkbox" checked={safeArea} onChange={(e) => setSafeArea(e.target.checked)} />
+              <span>Safe-area guides (preview)</span>
+            </label>
           </div>
 
           <div className="section">

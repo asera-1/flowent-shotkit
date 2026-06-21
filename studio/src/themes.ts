@@ -17,6 +17,9 @@ export const PRESETS: Preset[] = [
   { key: 'clean-light', label: 'Clean Light', theme: { ...base,
     headlineColor: '#16213A', gradient: ['#2D5BE3', '#28B6E8'],
     background: { kind: 'synthetic', from: '#F4F7FC', to: '#D6E8FB', glow: 'rgba(255,255,255,0.5)', grain: 3 } } },
+  { key: 'mesh', label: 'Mesh', theme: { ...base,
+    headlineColor: '#0E1B3A', gradient: ['#2D5BE3', '#7A4FE0'],
+    background: { kind: 'mesh', colors: ['#bcd0ff', '#a7e0ff', '#d9c7ff', '#ffd6ec', '#cfe0ff'], grain: 6 } } },
 ]
 
 export const PRESET_BY_KEY: Record<string, Preset> = Object.fromEntries(PRESETS.map((p) => [p.key, p]))

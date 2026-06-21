@@ -1,13 +1,11 @@
 export interface Rect { x: number; y: number; w: number; h: number }
 
 
-export interface BackgroundSpec {
-  kind: 'synthetic'
-  from: string
-  to: string
-  glow?: string
-  grain?: number
-}
+export type BackgroundSpec =
+  | { kind: 'synthetic'; from: string; to: string; glow?: string; grain?: number }
+  | { kind: 'mesh'; colors: string[]; grain?: number }
+
+export type Layout = 'headline-top' | 'headline-bottom'
 
 export interface Theme {
   fontFamily: string            // registered base family, e.g. 'Montserrat'
@@ -16,6 +14,7 @@ export interface Theme {
   headlineColor: string         // line 1 colour
   gradient: [string, string]    // line 2 gradient stops (left -> right)
   background: BackgroundSpec
+  layout?: Layout               // default 'headline-top'
 }
 
 export interface DeviceSpec {
@@ -44,6 +43,7 @@ export interface StoreTarget {
   folder: string
   device: DeviceSpec
   headline: HeadlineAnchors
+  featureGraphic?: boolean       // landscape banner: headline only, no device
 }
 
 export interface Slide {

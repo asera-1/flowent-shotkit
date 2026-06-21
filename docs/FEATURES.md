@@ -94,8 +94,10 @@ build order is at the bottom. See `IMPROVEMENTS.md` for the competitive rational
 
 ## Build order
 
-- **P0 (now):** template mode in the studio UI · full size matrix · layout library ·
-  mesh gradients · best-practice guardrails · per-image + contact-sheet export.
+- **P0 — done ✅:** template mode in the studio UI · full size matrix (6 targets incl. the
+  1024×500 feature graphic) · mesh gradients · headline-top/bottom layouts · safe-area
+  guides · per-image PNG download · contact-sheet export (CLI `_overview.png` + ZIP).
+  Remaining layout variants (split / diagonal / floating) move to P1.
 - **P1:** BYOK AI Director · localization · A/B variant sets · brand kit.
 - **P2:** fastlane export · GitHub Action · npm publish · bundled real frames · headline inpaint.
 - **P3:** app-preview video · projects/gallery · hosted studio · 3D frames · collaboration.

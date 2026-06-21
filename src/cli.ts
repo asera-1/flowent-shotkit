@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { createNodeRenderer } from './node/canvas-target'
 import { renderProject } from './compose'
+import { buildContactSheet } from './contactsheet'
 import { allTargets } from './targets'
 import type { Project } from './types'
 
@@ -32,6 +33,8 @@ async function main() {
     manifest.files.push({ store: r.store.id, slide: r.slide.id, file })
     console.log('rendered', file)
   }
+  const sheet = buildContactSheet(renderer, rendered.map((r) => ({ label: `${r.store.label} - ${r.slide.id}`, target: r.target })))
+  fs.writeFileSync(path.join(out, '_overview.png'), await sheet.encodePng())
   fs.writeFileSync(path.join(out, 'manifest.json'), JSON.stringify(manifest, null, 2))
   console.log(`done -> ${out} (${manifest.files.length} images)`)
 }
