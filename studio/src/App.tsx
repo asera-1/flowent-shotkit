@@ -4,6 +4,7 @@ import { renderSlide } from '@engine/compose'
 import { allTargets } from '@engine/targets'
 import type { Slide, StoreTarget, Theme } from '@engine/types'
 import { DeterministicDirector } from '@engine/director'
+import { renderTemplateSlide } from '@engine/template'
 import { createBrowserRenderer, initFonts, targetBlob, targetCanvas } from './browser-renderer'
 import { PRESETS, PRESET_BY_KEY } from './themes'
 
@@ -30,6 +31,8 @@ export function App() {
   const [enabled, setEnabled] = useState<string[]>(allTargets.map((t) => t.id))
   const [activeId, setActiveId] = useState<string | null>(null)
   const [activeStore, setActiveStore] = useState<string>(allTargets[0].id)
+  const [frameUrl, setFrameUrl] = useState<string | null>(null)
+  const [templateMode, setTemplateMode] = useState(false)
   const [busy, setBusy] = useState('')
   const previewRef = useRef<HTMLCanvasElement>(null)
   const tokenRef = useRef(0)
@@ -37,6 +40,11 @@ export function App() {
   const theme: Theme = PRESET_BY_KEY[themeKey].theme
   const active = slides.find((s) => s.id === activeId) || null
   const store = allTargets.find((t) => t.id === activeStore)!
+
+  const renderOne = (s: UISlide, st: StoreTarget) =>
+    templateMode && frameUrl
+      ? renderTemplateSlide(renderer, { frame: frameUrl, screenshot: s.url, headline: { line1: s.line1, line2: s.line2 }, theme, recolor: { from: theme.background.from, to: theme.background.to } })
+      : renderSlide(renderer, { theme, stores: [st], slides: [toEngine(s)] }, toEngine(s), st)
 
   useEffect(() => { initFonts().then(() => setFontsReady(true)) }, [])
 
@@ -64,14 +72,14 @@ export function App() {
     if (!fontsReady || !active || !previewRef.current) return
     const token = ++tokenRef.current
     ;(async () => {
-      const target = await renderSlide(renderer, { theme, stores: [store], slides: [toEngine(active)] }, toEngine(active), store)
+      const target = await renderOne(active, store)
       if (token !== tokenRef.current) return
       const src = targetCanvas(target)
       const dst = previewRef.current!
       dst.width = src.width; dst.height = src.height
       dst.getContext('2d')!.drawImage(src, 0, 0)
     })().catch(console.error)
-  }, [fontsReady, active?.id, active?.line1, active?.line2, themeKey, activeStore, renderer, store, theme])
+  }, [fontsReady, active?.id, active?.line1, active?.line2, themeKey, activeStore, templateMode, frameUrl, renderer, store, theme])
 
   function updateActive(patch: Partial<UISlide>) {
     if (!active) return
@@ -101,14 +109,20 @@ export function App() {
     setBusy('Rendering kit…')
     const zip = new JSZip()
     const manifest: any = { generatedAt: new Date().toISOString(), files: [] as any[] }
-    for (const id of enabled) {
-      const st = allTargets.find((t) => t.id === id)!
+    if (templateMode && frameUrl) {
       for (const s of slides) {
-        const target = await renderSlide(renderer, { theme, stores: [st], slides: [toEngine(s)] }, toEngine(s), st)
-        const blob = await targetBlob(target)
-        const fpath = `${st.folder}/${s.id}.png`
-        zip.file(fpath, blob)
-        manifest.files.push({ store: id, slide: s.id, file: fpath })
+        const target = await renderOne(s, store)
+        zip.file(`template/${s.id}.png`, await targetBlob(target))
+        manifest.files.push({ store: 'template', slide: s.id, file: `template/${s.id}.png` })
+      }
+    } else {
+      for (const id of enabled) {
+        const st = allTargets.find((t) => t.id === id)!
+        for (const s of slides) {
+          const target = await renderSlide(renderer, { theme, stores: [st], slides: [toEngine(s)] }, toEngine(s), st)
+          zip.file(`${st.folder}/${s.id}.png`, await targetBlob(target))
+          manifest.files.push({ store: id, slide: s.id, file: `${st.folder}/${s.id}.png` })
+        }
       }
     }
     zip.file('manifest.json', JSON.stringify(manifest, null, 2))
@@ -183,6 +197,19 @@ export function App() {
             ) : <div className="muted">Select a screen.</div>}
             <button className="btn block" disabled={!slides.length || !!busy} onClick={autoHeadlines}>✨ Auto-headlines (AI)</button>
             <div className="muted" style={{ marginTop: 6 }}>Maps each screen to an on-brand headline. Offline now; swap in a vision model for full auto-writing.</div>
+          </div>
+
+          <div className="section">
+            <h3>Device frame</h3>
+            <label className="btn sm block" style={{ textAlign: 'center', display: 'block' }}>
+              {frameUrl ? 'Change mockup' : '+ Upload your mockup'}
+              <input type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) { setFrameUrl(URL.createObjectURL(f)); setTemplateMode(true) } }} />
+            </label>
+            <label className="check" style={{ marginTop: 10 }}>
+              <input type="checkbox" checked={templateMode} disabled={!frameUrl} onChange={(e) => setTemplateMode(e.target.checked)} />
+              <span>Template-faithful mode</span>
+            </label>
+            <div className="muted" style={{ marginTop: 6 }}>Drop a real device mockup — the screen is auto-detected, your screenshot is swapped in, and the background recolors to the theme (grain preserved).</div>
           </div>
 
           <div className="section">
