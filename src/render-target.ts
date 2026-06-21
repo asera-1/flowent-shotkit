@@ -3,7 +3,7 @@ export interface RenderTarget {
   width: number
   height: number
   ctx: any                 // CanvasRenderingContext2D-compatible
-  encodePng(): Buffer | Promise<Buffer>
+  encodePng(): Uint8Array | Promise<Uint8Array>
 }
 
 export interface LoadedImage {
