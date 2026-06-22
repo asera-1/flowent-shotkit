@@ -7,5 +7,5 @@ const dir = path.dirname(fileURLToPath(import.meta.url))
 export default defineConfig({
   plugins: [react()],
   resolve: { alias: { '@engine': path.resolve(dir, '../src') } },
-  server: { fs: { allow: [path.resolve(dir, '..')] } },
+  server: { open: true, fs: { allow: [path.resolve(dir, '..')] } },
 })

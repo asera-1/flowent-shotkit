@@ -5,25 +5,54 @@
   "type": "module",
   "license": "MIT",
   "author": "Abdalla",
-  "keywords": ["app-store", "google-play", "screenshots", "release", "canvas", "marketing", "automation"],
-  "repository": { "type": "git", "url": "https://github.com/USERNAME/flowent-shotkit.git" },
-  "bin": { "shotkit": "./dist/cli.js" },
+  "keywords": [
+    "app-store",
+    "google-play",
+    "screenshots",
+    "release",
+    "canvas",
+    "marketing",
+    "automation"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/asera-1/flowent-shotkit.git"
+  },
+  "bin": {
+    "shotkit": "./dist/cli.js"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist", "assets", "docs", "README.md", "LICENSE"],
-  "engines": { "node": ">=18" },
+  "files": [
+    "dist",
+    "assets",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "render": "tsx src/cli.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "build": "tsup"
+    "build": "tsup",
+    "dev": "npm run dev -w studio",
+    "playground": "npm run dev -w studio",
+    "build:studio": "npm run build -w studio"
   },
-  "dependencies": { "@napi-rs/canvas": "^0.1.65" },
+  "dependencies": {
+    "@napi-rs/canvas": "^0.1.65"
+  },
   "devDependencies": {
     "@types/node": "^20.11.0",
     "tsup": "^8.0.0",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0",
     "vitest": "^1.3.0"
-  }
+  },
+  "workspaces": [
+    "studio"
+  ]
 }
