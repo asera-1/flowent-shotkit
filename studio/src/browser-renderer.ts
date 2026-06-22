@@ -4,10 +4,11 @@ let fontsP: Promise<void> | null = null
 export function initFonts(): Promise<void> {
   if (!fontsP) {
     fontsP = (async () => {
+      const base = (import.meta as any).env.BASE_URL
       const defs: [string, string][] = [
-        ['Montserrat600', '/fonts/Montserrat-600.ttf'],
-        ['Montserrat700', '/fonts/Montserrat-700.ttf'],
-        ['Montserrat800', '/fonts/Montserrat-800.ttf'],
+        ['Montserrat600', `${base}fonts/Montserrat-600.ttf`],
+        ['Montserrat700', `${base}fonts/Montserrat-700.ttf`],
+        ['Montserrat800', `${base}fonts/Montserrat-800.ttf`],
       ]
       await Promise.all(defs.map(async ([fam, url]) => {
         const f = new FontFace(fam, `url(${url})`)

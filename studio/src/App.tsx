@@ -74,13 +74,17 @@ export function App() {
   }, [])
 
   async function loadExamples() {
+    const base = (import.meta as any).env.BASE_URL
     const ex: UISlide[] = [
-      { id: 'home', name: 'home.png', url: '/examples/home.png', line1: 'YOUR NEXT LESSON', line2: 'READY EVERY DAY' },
-      { id: 'vocab', name: 'saved-vocab.png', url: '/examples/vocab.png', line1: 'BEAT THE', line2: 'FORGETTING CURVE' },
+      { id: 'home', name: 'home.png', url: `${base}examples/home.png`, line1: 'YOUR NEXT LESSON', line2: 'READY EVERY DAY' },
+      { id: 'vocab', name: 'saved-vocab.png', url: `${base}examples/vocab.png`, line1: 'BEAT THE', line2: 'FORGETTING CURVE' },
     ]
     setSlides(ex)
     setActiveId('home')
   }
+
+  // open with the example kit loaded so the studio is never blank on first visit
+  useEffect(() => { loadExamples() }, [])
 
   // live preview of the active slide on the active store
   useEffect(() => {
