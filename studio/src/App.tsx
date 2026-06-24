@@ -32,6 +32,12 @@ function download(blob: Blob, name: string) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1500)
 }
 
+const OFFLINE_OPTIONS = [
+  { line1: 'LEARN FASTER', line2: 'EVERY DAY' },
+  { line1: 'BUILT FOR', line2: 'REAL PROGRESS' },
+  { line1: 'YOUR WAY', line2: 'TO FLUENCY' },
+]
+
 export function App() {
   const renderer = useMemo(() => createBrowserRenderer(), [])
   const [fontsReady, setFontsReady] = useState(false)
@@ -39,6 +45,8 @@ export function App() {
   const [themeKey, setThemeKey] = useState('brand-blue')
   const [customTheme, setCustomTheme] = useState<Theme | null>(null)
   const [brandColor, setBrandColor] = useState('#5CA8FF')
+  const [deviceColor, setDeviceColor] = useState<'titanium' | 'black' | 'silver'>('titanium')
+  const [options, setOptions] = useState<{ line1: string; line2: string }[]>([])
   const [enabled, setEnabled] = useState<string[]>(allTargets.map((t) => t.id))
   const [activeId, setActiveId] = useState<string | null>(null)
   const [activeStore, setActiveStore] = useState<string>(allTargets[0].id)
@@ -62,8 +70,8 @@ export function App() {
 
   const theme: Theme = useMemo(() => {
     const t = themeKey === 'custom' && customTheme ? customTheme : (PRESET_BY_KEY[themeKey]?.theme ?? PRESET_BY_KEY['brand-blue'].theme)
-    return { ...t, layout }
-  }, [themeKey, layout, customTheme])
+    return { ...t, layout, deviceColor }
+  }, [themeKey, layout, customTheme, deviceColor])
   const active = slides.find((s) => s.id === activeId) || null
   const store = allTargets.find((t) => t.id === activeStore)!
 
@@ -160,6 +168,28 @@ export function App() {
       setCustom(themeFromColors(pal[0], pal[1] ?? darken(pal[0], 0.42)))
       notify('Theme matched to your screenshot')
     } catch { notify('Could not read colors from that image', true) }
+  }
+
+  async function genOptions() {
+    if (!active) return
+    setBusy('Writing options…')
+    const brandVoice = { tone: 'direct' as const, casing: 'upper' as const, banned: [',', '—'] }
+    try {
+      if (aiKey.trim()) {
+        const dir = new OpenAIDirector({ apiKey: aiKey.trim(), model: aiModel })
+        const img = await toDataUrl(active.url)
+        const opts = await dir.options({ id: active.id, image: img, label: active.name }, brandVoice.banned, 'Flowent', 3)
+        setOptions(opts.filter((o) => o.line1 || o.line2))
+        if (!opts.length) notify('No options returned', true)
+      } else {
+        const stores = enabled.map((id) => allTargets.find((t) => t.id === id)!).filter(Boolean)
+        const det = await new DeterministicDirector().generate({ screenshots: [{ id: active.id, image: active.url, label: active.name }], appProfile: { name: 'Flowent' }, brandVoice, stores })
+        const first = det.slides[0]?.headline
+        setOptions([first, ...OFFLINE_OPTIONS].filter(Boolean).slice(0, 3) as { line1: string; line2: string }[])
+      }
+    } catch (e: any) {
+      notify('Options failed: ' + (e?.message || e), true)
+    } finally { setBusy('') }
   }
 
   function applyCopy(res: { slides: { screenshotId: string; headline: { line1: string; line2: string } }[] }) {
@@ -350,6 +380,19 @@ export function App() {
               </>
             ) : <div className="muted">Select a screen.</div>}
             <button className="btn block" disabled={!slides.length || !!busy} onClick={autoHeadlines}>✨ Auto-headlines (AI)</button>
+            <div className="row" style={{ marginTop: 8 }}>
+              <button className="btn sm" style={{ flex: 1 }} disabled={!slides.length || !!busy} onClick={autoHeadlines} title="Re-run for a fresh set">↻ Regenerate</button>
+              <button className="btn sm" style={{ flex: 1 }} disabled={!active || !!busy} onClick={genOptions} title="3 options for this screen">✨ Options</button>
+            </div>
+            {options.length > 0 && (
+              <div className="opts">
+                {options.map((o, i) => (
+                  <button key={i} className="opt" onClick={() => { updateActive({ line1: o.line1, line2: o.line2 }); setOptions([]) }}>
+                    <b>{o.line1 || 'No line 1'}</b><span>{o.line2}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <button className="btn block" style={{ marginTop: 8 }} disabled={!active || !!busy} onClick={downloadActive}>⬇ Download this slide</button>
             <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
               <div className="field" style={{ marginBottom: 6 }}>
@@ -368,15 +411,25 @@ export function App() {
 
           <div className="section">
             <h3>Device frame</h3>
-            <label className="btn sm block" style={{ textAlign: 'center', display: 'block' }}>
-              {frameUrl ? 'Change mockup' : '+ Upload your mockup'}
+            <div className="row">
+              {(['titanium', 'black', 'silver'] as const).map((c) => (
+                <button key={c} className={'tab' + (deviceColor === c ? ' active' : '')} style={{ flex: 1, textTransform: 'capitalize' }} onClick={() => setDeviceColor(c)}>{c}</button>
+              ))}
+            </div>
+            <label className="btn sm block" style={{ textAlign: 'center', display: 'block', marginTop: 10 }}>
+              {frameUrl ? 'Change mockup' : '+ Upload your own mockup'}
               <input type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) { setFrameUrl(URL.createObjectURL(f)); setTemplateMode(true) } }} />
             </label>
-            <label className="check" style={{ marginTop: 10 }}>
-              <input type="checkbox" checked={templateMode} disabled={!frameUrl} onChange={(e) => setTemplateMode(e.target.checked)} />
-              <span>Template-faithful mode</span>
-            </label>
-            <div className="muted" style={{ marginTop: 6 }}>Drop a real device mockup — the screen is auto-detected, your screenshot is swapped in, and the background recolors to the theme (grain preserved).</div>
+            {frameUrl && (
+              <div className="row" style={{ marginTop: 8, alignItems: 'center' }}>
+                <label className="check" style={{ flex: 1 }}>
+                  <input type="checkbox" checked={templateMode} onChange={(e) => setTemplateMode(e.target.checked)} />
+                  <span>Template-faithful mode</span>
+                </label>
+                <button className="btn sm" onClick={() => { setFrameUrl(null); setTemplateMode(false) }}>Remove</button>
+              </div>
+            )}
+            <div className="muted" style={{ marginTop: 6 }}>Pick a finish for the built-in frame, or drop your own real device mockup — the screen is auto-detected, your screenshot is swapped in, and the background recolors to the theme (grain preserved).</div>
           </div>
 
           <div className="section">

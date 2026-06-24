@@ -116,3 +116,11 @@ button.swatch { padding: 0; text-align: left; }
 .crow.ok .dot { background: #38d39f; }
 .crow.warn .dot { background: #ffb020; }
 .crow .hint { color: var(--muted); margin-left: auto; font-size: 11px; text-align: right; max-width: 56%; }
+
+/* --- AI headline options --- */
+.opts { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.opt { text-align: left; border: 1px solid var(--line); background: var(--panel2); color: var(--text);
+  border-radius: 8px; padding: 8px 10px; cursor: pointer; display: flex; flex-direction: column; gap: 1px; }
+.opt:hover { border-color: var(--accent); }
+.opt b { font-size: 12px; letter-spacing: .3px; }
+.opt span { color: var(--muted); font-size: 11px; }

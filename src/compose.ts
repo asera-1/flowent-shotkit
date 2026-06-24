@@ -26,7 +26,7 @@ export async function renderSlide(
   }
   const eff = effectiveStore(store, project.theme.layout ?? 'headline-top')
   const shot = await renderer.loadImage(slide.screenshot)
-  drawDeviceAndScreen(t, eff, shot)
+  drawDeviceAndScreen(t, eff, shot, project.theme.deviceColor)
   drawStatusBar(t, eff)
   drawHeadline(t, eff, project.theme, slide.headline.line1, slide.headline.line2)
   return t

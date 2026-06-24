@@ -15,6 +15,7 @@ export interface Theme {
   gradient: [string, string]    // line 2 gradient stops (left -> right)
   background: BackgroundSpec
   layout?: Layout               // default 'headline-top'
+  deviceColor?: 'titanium' | 'black' | 'silver'  // synthetic frame finish
 }
 
 export interface DeviceSpec {
