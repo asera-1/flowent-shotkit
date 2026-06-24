@@ -50,9 +50,12 @@ export function App() {
   const [busy, setBusy] = useState('')
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [toast, setToast] = useState<{ msg: string; error?: boolean } | null>(null)
+  const [previewBusy, setPreviewBusy] = useState(false)
   const previewRef = useRef<HTMLCanvasElement>(null)
   const tokenRef = useRef(0)
   const showingExamplesRef = useRef(false)
+  const dragIndexRef = useRef<number | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
 
   const theme: Theme = useMemo(() => ({ ...PRESET_BY_KEY[themeKey].theme, layout }), [themeKey, layout])
   const active = slides.find((s) => s.id === activeId) || null
@@ -96,6 +99,7 @@ export function App() {
   useEffect(() => {
     if (!fontsReady || !active || !previewRef.current) return
     const token = ++tokenRef.current
+    const spinTimer = window.setTimeout(() => { if (token === tokenRef.current) setPreviewBusy(true) }, 180)
     ;(async () => {
       const target = await renderOne(active, store)
       if (token !== tokenRef.current) return
@@ -109,7 +113,7 @@ export function App() {
         const mx = dst.width * 0.05, my = dst.height * 0.04
         g.strokeRect(mx, my, dst.width - 2 * mx, dst.height - 2 * my); g.restore()
       }
-    })().catch(console.error)
+    })().catch(console.error).finally(() => { window.clearTimeout(spinTimer); if (token === tokenRef.current) setPreviewBusy(false) })
   }, [fontsReady, active?.id, active?.line1, active?.line2, activeStore, templateMode, frameUrl, safeArea, renderer, store, theme])
 
   function updateActive(patch: Partial<UISlide>) {
@@ -126,6 +130,17 @@ export function App() {
     setSlides((p) => {
       const next = p.filter((s) => s.id !== id)
       if (id === activeId) setActiveId(next[0]?.id ?? null)
+      return next
+    })
+    showingExamplesRef.current = false
+  }
+
+  function moveSlide(from: number | null, to: number) {
+    if (from === null || from === to || to < 0 || to >= slides.length) return
+    setSlides((p) => {
+      const next = p.slice()
+      const [m] = next.splice(from, 1)
+      next.splice(to, 0, m)
       return next
     })
     showingExamplesRef.current = false
@@ -263,9 +278,22 @@ export function App() {
           </div>
           <div className="section" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {slides.length === 0 && <div className="muted">Upload app screenshots or load the example kit.</div>}
-            {slides.map((s) => (
-              <div key={s.id} role="button" tabIndex={0} className={'slide' + (s.id === activeId ? ' active' : '')}
-                onClick={() => setActiveId(s.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveId(s.id) } }}>
+            {slides.map((s, i) => (
+              <div key={s.id} role="button" tabIndex={0}
+                className={'slide' + (s.id === activeId ? ' active' : '') + (dragOverId === s.id ? ' dragover' : '')}
+                draggable
+                onDragStart={(e) => { dragIndexRef.current = i; e.dataTransfer.effectAllowed = 'move' }}
+                onDragOver={(e) => { e.preventDefault(); if (dragOverId !== s.id) setDragOverId(s.id) }}
+                onDragLeave={() => setDragOverId((d) => (d === s.id ? null : d))}
+                onDrop={(e) => { e.preventDefault(); moveSlide(dragIndexRef.current, i); setDragOverId(null); dragIndexRef.current = null }}
+                onDragEnd={() => { setDragOverId(null); dragIndexRef.current = null }}
+                onClick={() => setActiveId(s.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveId(s.id) }
+                  else if (e.altKey && e.key === 'ArrowUp') { e.preventDefault(); moveSlide(i, i - 1) }
+                  else if (e.altKey && e.key === 'ArrowDown') { e.preventDefault(); moveSlide(i, i + 1) }
+                }}>
+                <span className="grip" aria-hidden="true">⠿</span>
                 <img src={s.url} alt={s.name} />
                 <div className="meta">
                   <div className="n">{s.line1 || s.name}</div>
@@ -288,6 +316,7 @@ export function App() {
           </div>
           <div className="preview">
             {active ? <canvas ref={previewRef} /> : <div className="empty">Add a screen to see the live preview. The engine renders right here in your browser — no server.</div>}
+            {active && previewBusy && <div className="preview-spin"><div className="spin" /></div>}
           </div>
           <div className="muted">{store.width} × {store.height}{fontsReady ? '' : ' · loading fonts…'}</div>
         </div>
