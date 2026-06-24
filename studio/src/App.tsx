@@ -48,8 +48,11 @@ export function App() {
   const [variants, setVariants] = useState<string[]>([])
   const [locales, setLocales] = useState('')
   const [busy, setBusy] = useState('')
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
+  const [toast, setToast] = useState<{ msg: string; error?: boolean } | null>(null)
   const previewRef = useRef<HTMLCanvasElement>(null)
   const tokenRef = useRef(0)
+  const showingExamplesRef = useRef(false)
 
   const theme: Theme = useMemo(() => ({ ...PRESET_BY_KEY[themeKey].theme, layout }), [themeKey, layout])
   const active = slides.find((s) => s.id === activeId) || null
@@ -67,10 +70,12 @@ export function App() {
     const arr = Array.from(files).filter((f) => f.type.startsWith('image/'))
     const next: UISlide[] = arr.map((f, i) => ({
       id: `${slug(f.name)}-${(Date.now() + i).toString(36).slice(-4)}`,
-      name: f.name, url: URL.createObjectURL(f), line1: 'YOUR HEADLINE', line2: 'GOES HERE',
+      name: f.name, url: URL.createObjectURL(f), line1: '', line2: '',
     }))
-    setSlides((p) => [...p, ...next])
-    setActiveId((cur) => cur ?? next[0]?.id ?? null)
+    if (!next.length) return
+    setSlides((p) => (showingExamplesRef.current ? next : [...p, ...next]))
+    showingExamplesRef.current = false
+    setActiveId(next[0].id)
   }, [])
 
   async function loadExamples() {
@@ -81,6 +86,7 @@ export function App() {
     ]
     setSlides(ex)
     setActiveId('home')
+    showingExamplesRef.current = true
   }
 
   // open with the example kit loaded so the studio is never blank on first visit
@@ -111,6 +117,20 @@ export function App() {
     setSlides((p) => p.map((s) => (s.id === active.id ? { ...s, ...patch } : s)))
   }
 
+  function notify(msg: string, error = false) {
+    setToast({ msg, error })
+    window.setTimeout(() => setToast((t) => (t && t.msg === msg ? null : t)), error ? 6000 : 3500)
+  }
+
+  function removeSlide(id: string) {
+    setSlides((p) => {
+      const next = p.filter((s) => s.id !== id)
+      if (id === activeId) setActiveId(next[0]?.id ?? null)
+      return next
+    })
+    showingExamplesRef.current = false
+  }
+
   function applyCopy(res: { slides: { screenshotId: string; headline: { line1: string; line2: string } }[] }) {
     setSlides((p) => p.map((s) => {
       const c = res.slides.find((x) => x.screenshotId === s.id)
@@ -131,13 +151,16 @@ export function App() {
       const dir = useAI ? new OpenAIDirector({ apiKey: aiKey.trim(), model: aiModel }) : new DeterministicDirector()
       applyCopy(await dir.generate({ screenshots, appProfile: { name: 'Flowent' }, brandVoice, stores }))
     } catch (e: any) {
-      alert('AI generation failed: ' + (e?.message || e) + '\nUsing offline templates instead.')
-      applyCopy(await new DeterministicDirector().generate({
-        screenshots: slides.map((s) => ({ id: s.id, image: s.url, label: s.name })),
-        appProfile: { name: 'Flowent' }, brandVoice, stores,
-      }))
+      notify('AI generation failed: ' + (e?.message || e) + ' — using offline templates instead.', true)
+      try {
+        applyCopy(await new DeterministicDirector().generate({
+          screenshots: slides.map((s) => ({ id: s.id, image: s.url, label: s.name })),
+          appProfile: { name: 'Flowent' }, brandVoice, stores,
+        }))
+      } catch { /* ignore */ }
+    } finally {
+      setBusy('')
     }
-    setBusy('')
   }
 
   async function downloadActive() {
@@ -149,53 +172,70 @@ export function App() {
   async function exportZip() {
     if (!slides.length || !enabled.length) return
     const locs = locales.split(',').map((x) => x.trim()).filter(Boolean)
-    setBusy(locs.length && aiKey.trim() ? 'Translating + rendering…' : 'Rendering kit…')
+    const useTemplate = templateMode && !!frameUrl
+    const useLocale = !!locs.length && !!aiKey.trim()
+    const variantKeys = (!useTemplate && !useLocale && variants.length) ? variants : null
+    if (locs.length && !aiKey.trim()) notify('Languages need an AI key — exporting without translation.', true)
+    if (useLocale && variants.length) notify('Languages take priority; A/B variants skipped this export.')
+    const total = useTemplate ? slides.length
+      : useLocale ? locs.length * enabled.length * slides.length
+      : (variantKeys ? variantKeys.length : 1) * enabled.length * slides.length
+    let done = 0
+    const tick = () => setProgress({ done: ++done, total })
+    setProgress({ done: 0, total })
+    setBusy(useLocale ? 'Translating + rendering…' : 'Rendering kit…')
     const zip = new JSZip()
     const sheetItems: { label: string; target: RenderTarget }[] = []
     const manifest: any = { generatedAt: new Date().toISOString(), files: [] as any[] }
-    if (templateMode && frameUrl) {
-      for (const s of slides) {
-        const target = await renderOne(s, store)
-        zip.file(`template/${s.id}.png`, await targetBlob(target))
-        sheetItems.push({ label: s.id, target })
-        manifest.files.push({ store: 'template', slide: s.id, file: `template/${s.id}.png` })
-      }
-    } else if (locs.length && aiKey.trim()) {
-      const tr = await localizeHeadlines(slides.map((s) => ({ id: s.id, line1: s.line1, line2: s.line2 })), locs, { apiKey: aiKey.trim(), model: aiModel })
-      for (const loc of locs) {
-        for (const id of enabled) {
-          const st = allTargets.find((t) => t.id === id)!
-          for (const s of slides) {
-            const h = tr[loc]?.[s.id] ?? { line1: s.line1, line2: s.line2 }
-            const eng = { id: s.id, screenshot: s.url, headline: h }
-            const target = await renderSlide(renderer, { theme, stores: [st], slides: [eng] }, eng, st)
-            zip.file(`${loc}/${st.folder}/${s.id}.png`, await targetBlob(target))
-            sheetItems.push({ label: `${loc} · ${st.label} ${s.id}`, target })
-            manifest.files.push({ locale: loc, store: id, slide: s.id, file: `${loc}/${st.folder}/${s.id}.png` })
+    try {
+      if (useTemplate) {
+        for (const s of slides) {
+          const target = await renderOne(s, store)
+          zip.file(`template/${s.id}.png`, await targetBlob(target))
+          sheetItems.push({ label: s.id, target })
+          manifest.files.push({ store: 'template', slide: s.id, file: `template/${s.id}.png` }); tick()
+        }
+      } else if (useLocale) {
+        const tr = await localizeHeadlines(slides.map((s) => ({ id: s.id, line1: s.line1, line2: s.line2 })), locs, { apiKey: aiKey.trim(), model: aiModel })
+        for (const loc of locs) {
+          for (const id of enabled) {
+            const st = allTargets.find((t) => t.id === id)!
+            for (const s of slides) {
+              const h = tr[loc]?.[s.id] ?? { line1: s.line1, line2: s.line2 }
+              const eng = { id: s.id, screenshot: s.url, headline: h }
+              const target = await renderSlide(renderer, { theme, stores: [st], slides: [eng] }, eng, st)
+              zip.file(`${loc}/${st.folder}/${s.id}.png`, await targetBlob(target))
+              sheetItems.push({ label: `${loc} · ${st.label} ${s.id}`, target })
+              manifest.files.push({ locale: loc, store: id, slide: s.id, file: `${loc}/${st.folder}/${s.id}.png` }); tick()
+            }
+          }
+        }
+      } else {
+        const keys = variantKeys ?? [themeKey]
+        for (const vk of keys) {
+          const vtheme: Theme = { ...PRESET_BY_KEY[vk].theme, layout }
+          const prefix = variantKeys ? `variant-${vk}/` : ''
+          for (const id of enabled) {
+            const st = allTargets.find((t) => t.id === id)!
+            for (const s of slides) {
+              const target = await renderSlide(renderer, { theme: vtheme, stores: [st], slides: [toEngine(s)] }, toEngine(s), st)
+              zip.file(`${prefix}${st.folder}/${s.id}.png`, await targetBlob(target))
+              sheetItems.push({ label: `${variantKeys ? vk + ' · ' : ''}${st.label} ${s.id}`, target })
+              manifest.files.push({ variant: vk, store: id, slide: s.id, file: `${prefix}${st.folder}/${s.id}.png` }); tick()
+            }
           }
         }
       }
-    } else {
-      const variantKeys = variants.length ? variants : [themeKey]
-      for (const vk of variantKeys) {
-        const vtheme: Theme = { ...PRESET_BY_KEY[vk].theme, layout }
-        const prefix = variants.length ? `variant-${vk}/` : ''
-        for (const id of enabled) {
-          const st = allTargets.find((t) => t.id === id)!
-          for (const s of slides) {
-            const target = await renderSlide(renderer, { theme: vtheme, stores: [st], slides: [toEngine(s)] }, toEngine(s), st)
-            zip.file(`${prefix}${st.folder}/${s.id}.png`, await targetBlob(target))
-            sheetItems.push({ label: `${variants.length ? vk + ' · ' : ''}${st.label} ${s.id}`, target })
-            manifest.files.push({ variant: vk, store: id, slide: s.id, file: `${prefix}${st.folder}/${s.id}.png` })
-          }
-        }
-      }
+      if (sheetItems.length) zip.file('_overview.png', await targetBlob(buildContactSheet(renderer, sheetItems)))
+      zip.file('manifest.json', JSON.stringify(manifest, null, 2))
+      const out = await zip.generateAsync({ type: 'blob' })
+      download(out, 'flowent-shotkit-kit.zip')
+      notify(`Exported ${manifest.files.length} image${manifest.files.length === 1 ? '' : 's'} → flowent-shotkit-kit.zip`)
+    } catch (e: any) {
+      notify('Export failed: ' + (e?.message || e), true)
+    } finally {
+      setBusy(''); setProgress(null)
     }
-    if (sheetItems.length) zip.file('_overview.png', await targetBlob(buildContactSheet(renderer, sheetItems)))
-    zip.file('manifest.json', JSON.stringify(manifest, null, 2))
-    const out = await zip.generateAsync({ type: 'blob' })
-    download(out, 'flowent-shotkit-kit.zip')
-    setBusy('')
   }
 
   return (
@@ -224,12 +264,14 @@ export function App() {
           <div className="section" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {slides.length === 0 && <div className="muted">Upload app screenshots or load the example kit.</div>}
             {slides.map((s) => (
-              <div key={s.id} className={'slide' + (s.id === activeId ? ' active' : '')} onClick={() => setActiveId(s.id)}>
-                <img src={s.url} alt="" />
+              <div key={s.id} role="button" tabIndex={0} className={'slide' + (s.id === activeId ? ' active' : '')}
+                onClick={() => setActiveId(s.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveId(s.id) } }}>
+                <img src={s.url} alt={s.name} />
                 <div className="meta">
                   <div className="n">{s.line1 || s.name}</div>
-                  <div className="h">{s.line2}</div>
+                  <div className="h">{s.line2 || 'No headline yet'}</div>
                 </div>
+                <button className="x" aria-label="Remove screen" title="Remove" onClick={(e) => { e.stopPropagation(); removeSlide(s.id) }}>×</button>
               </div>
             ))}
           </div>
@@ -239,9 +281,9 @@ export function App() {
         <div className="stage">
           <div className="tabs">
             {allTargets.map((t) => (
-              <div key={t.id} className={'tab' + (t.id === activeStore ? ' active' : '')} onClick={() => setActiveStore(t.id)}>
+              <button key={t.id} className={'tab' + (t.id === activeStore ? ' active' : '')} onClick={() => setActiveStore(t.id)}>
                 {t.label}
-              </div>
+              </button>
             ))}
           </div>
           <div className="preview">
@@ -296,11 +338,11 @@ export function App() {
             <h3>Background</h3>
             <div className="swatches">
               {PRESETS.map((p) => (
-                <div key={p.key} className={'swatch' + (p.key === themeKey ? ' active' : '')}
+                <button key={p.key} aria-label={p.label} className={'swatch' + (p.key === themeKey ? ' active' : '')}
                   style={{ background: p.theme.background.kind === 'mesh' ? `linear-gradient(135deg, ${p.theme.background.colors.join(', ')})` : `linear-gradient(135deg, ${p.theme.background.from}, ${p.theme.background.to})` }}
                   onClick={() => setThemeKey(p.key)}>
                   <span style={{ color: p.theme.headlineColor }}>{p.label}</span>
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -344,6 +386,12 @@ export function App() {
           </div>
         </div>
       </div>
+      {busy && (
+        <div className="busy-overlay">
+          <div className="card"><div className="spin" /><div>{busy}</div>{progress && <div className="muted" style={{ marginTop: 6 }}>{progress.done} / {progress.total}</div>}</div>
+        </div>
+      )}
+      {toast && <div className={'toast' + (toast.error ? ' error' : '')} onClick={() => setToast(null)}>{toast.msg}</div>}
     </div>
   )
 }
