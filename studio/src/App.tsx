@@ -9,6 +9,7 @@ import { buildContactSheet } from '@engine/contactsheet'
 import type { RenderTarget } from '@engine/render-target'
 import { createBrowserRenderer, initFonts, targetBlob, targetCanvas } from './browser-renderer'
 import { PRESETS, PRESET_BY_KEY } from './themes'
+import { themeFromColors, paletteFromImage, contrastRatio, darken } from './color'
 
 interface UISlide { id: string; name: string; url: string; line1: string; line2: string }
 
@@ -36,6 +37,8 @@ export function App() {
   const [fontsReady, setFontsReady] = useState(false)
   const [slides, setSlides] = useState<UISlide[]>([])
   const [themeKey, setThemeKey] = useState('brand-blue')
+  const [customTheme, setCustomTheme] = useState<Theme | null>(null)
+  const [brandColor, setBrandColor] = useState('#5CA8FF')
   const [enabled, setEnabled] = useState<string[]>(allTargets.map((t) => t.id))
   const [activeId, setActiveId] = useState<string | null>(null)
   const [activeStore, setActiveStore] = useState<string>(allTargets[0].id)
@@ -57,7 +60,10 @@ export function App() {
   const dragIndexRef = useRef<number | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
 
-  const theme: Theme = useMemo(() => ({ ...PRESET_BY_KEY[themeKey].theme, layout }), [themeKey, layout])
+  const theme: Theme = useMemo(() => {
+    const t = themeKey === 'custom' && customTheme ? customTheme : (PRESET_BY_KEY[themeKey]?.theme ?? PRESET_BY_KEY['brand-blue'].theme)
+    return { ...t, layout }
+  }, [themeKey, layout, customTheme])
   const active = slides.find((s) => s.id === activeId) || null
   const store = allTargets.find((t) => t.id === activeStore)!
 
@@ -144,6 +150,16 @@ export function App() {
       return next
     })
     showingExamplesRef.current = false
+  }
+
+  function setCustom(t: Theme) { setCustomTheme(t); setThemeKey('custom') }
+  async function matchScreenshot() {
+    if (!active) return
+    try {
+      const pal = await paletteFromImage(active.url)
+      setCustom(themeFromColors(pal[0], pal[1] ?? darken(pal[0], 0.42)))
+      notify('Theme matched to your screenshot')
+    } catch { notify('Could not read colors from that image', true) }
   }
 
   function applyCopy(res: { slides: { screenshotId: string; headline: { line1: string; line2: string } }[] }) {
@@ -366,7 +382,7 @@ export function App() {
           <div className="section">
             <h3>Background</h3>
             <div className="swatches">
-              {PRESETS.map((p) => (
+              {(customTheme ? [...PRESETS, { key: 'custom', label: 'Custom', theme: customTheme }] : PRESETS).map((p) => (
                 <button key={p.key} aria-label={p.label} className={'swatch' + (p.key === themeKey ? ' active' : '')}
                   style={{ background: p.theme.background.kind === 'mesh' ? `linear-gradient(135deg, ${p.theme.background.colors.join(', ')})` : `linear-gradient(135deg, ${p.theme.background.from}, ${p.theme.background.to})` }}
                   onClick={() => setThemeKey(p.key)}>
@@ -374,6 +390,28 @@ export function App() {
                 </button>
               ))}
             </div>
+            <div className="row" style={{ marginTop: 10, alignItems: 'center' }}>
+              <input type="color" className="color-in" aria-label="Brand color" value={brandColor}
+                onChange={(e) => { setBrandColor(e.target.value); setCustom(themeFromColors(e.target.value, darken(e.target.value, 0.42))) }} />
+              <button className="btn sm" style={{ flex: 1 }} disabled={!active} onClick={matchScreenshot}>🎨 Match my screenshot</button>
+            </div>
+          </div>
+
+          <div className="section">
+            <h3>Checks</h3>
+            {active ? (() => {
+              const bg = theme.background.kind === 'mesh' ? theme.background.colors[Math.floor(theme.background.colors.length / 2)] : theme.background.from
+              const cr = contrastRatio(theme.headlineColor, bg)
+              const len = Math.max(active.line1.length, active.line2.length)
+              const rows = [
+                { ok: cr >= 3, label: `Contrast ${cr.toFixed(1)}:1`, hint: cr >= 3 ? 'Good' : 'Low — darker/lighter bg or headline' },
+                { ok: len > 0 && len <= 22, label: `Caption ${len} chars`, hint: len === 0 ? 'No headline yet' : len <= 22 ? 'Reads at thumbnail' : 'Long — shorten for the store grid' },
+                { ok: safeArea, label: 'Safe-area guides', hint: safeArea ? 'On' : 'Turn on to keep text off edges' },
+              ]
+              return <div className="checks">{rows.map((c, i) => (
+                <div key={i} className={'crow ' + (c.ok ? 'ok' : 'warn')}><span className="dot" />{c.label}<span className="hint">{c.hint}</span></div>
+              ))}</div>
+            })() : <div className="muted">Select a screen.</div>}
           </div>
 
           <div className="section">

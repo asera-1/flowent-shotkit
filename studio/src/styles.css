@@ -107,3 +107,12 @@ button.swatch { padding: 0; text-align: left; }
 .preview { position: relative; }
 .preview-spin { position: absolute; top: 12px; right: 12px; background: var(--panel2);
   border: 1px solid var(--line); border-radius: 8px; padding: 6px; box-shadow: 0 6px 20px rgba(0,0,0,.4); }
+
+/* --- custom color + checks --- */
+.color-in { width: 40px; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); cursor: pointer; }
+.checks { display: flex; flex-direction: column; gap: 7px; }
+.crow { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.crow .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.crow.ok .dot { background: #38d39f; }
+.crow.warn .dot { background: #ffb020; }
+.crow .hint { color: var(--muted); margin-left: auto; font-size: 11px; text-align: right; max-width: 56%; }
