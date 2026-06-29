@@ -124,3 +124,5 @@ button.swatch { padding: 0; text-align: left; }
 .opt:hover { border-color: var(--accent); }
 .opt b { font-size: 12px; letter-spacing: .3px; }
 .opt span { color: var(--muted); font-size: 11px; }
+
+.sublabel { display: block; font-size: 11px; color: var(--muted); margin: 10px 0 6px; text-transform: uppercase; letter-spacing: .5px; }

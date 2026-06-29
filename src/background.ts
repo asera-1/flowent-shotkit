@@ -19,10 +19,28 @@ export function drawBackground(t: RenderTarget, _store: StoreTarget, theme: Them
     addGrain(ctx, W, H, bg.grain ?? 6)
     return
   }
-  const g = ctx.createLinearGradient(0, 0, W, H)
-  g.addColorStop(0, bg.from); g.addColorStop(1, bg.to)
-  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H)
-  if (bg.glow) {
+  const style = bg.style ?? 'diagonal'
+  if (style === 'radial') {
+    const g = ctx.createRadialGradient(W * 0.5, H * 0.42, 0, W * 0.5, H * 0.42, Math.hypot(W, H) * 0.62)
+    g.addColorStop(0, bg.from); g.addColorStop(1, bg.to)
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H)
+  } else if (style === 'conic') {
+    ctx.fillStyle = bg.to; ctx.fillRect(0, 0, W, H)
+    const g = ctx.createConicGradient(-Math.PI / 2, W * 0.5, H * 0.42)
+    g.addColorStop(0, bg.from); g.addColorStop(0.5, bg.to); g.addColorStop(1, bg.from)
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H)
+  } else if (style === 'spotlight') {
+    ctx.fillStyle = bg.to; ctx.fillRect(0, 0, W, H)
+    const g = ctx.createRadialGradient(W * 0.5, H * 0.26, 0, W * 0.5, H * 0.26, Math.max(W, H) * 0.78)
+    g.addColorStop(0, bg.from); g.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H)
+  } else {
+    const [x0, y0, x1, y1] = style === 'vertical' ? [0, 0, 0, H] : [0, 0, W, H]
+    const g = ctx.createLinearGradient(x0, y0, x1, y1)
+    g.addColorStop(0, bg.from); g.addColorStop(1, bg.to)
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H)
+  }
+  if (bg.glow && (style === 'diagonal' || style === 'vertical')) {
     const rg = ctx.createRadialGradient(W * 0.2, H * 0.12, 0, W * 0.2, H * 0.12, W * 1.05)
     rg.addColorStop(0, bg.glow); rg.addColorStop(1, 'rgba(0,0,0,0)')
     ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H)

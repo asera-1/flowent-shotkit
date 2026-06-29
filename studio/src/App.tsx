@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import JSZip from 'jszip'
 import { renderSlide } from '@engine/compose'
 import { allTargets } from '@engine/targets'
-import type { Slide, StoreTarget, Theme } from '@engine/types'
+import type { Slide, StoreTarget, Theme, GradientStyle } from '@engine/types'
 import { DeterministicDirector, OpenAIDirector, localizeHeadlines } from '@engine/director'
 import { renderTemplateSlide } from '@engine/template'
 import { buildContactSheet } from '@engine/contactsheet'
@@ -46,6 +46,7 @@ export function App() {
   const [customTheme, setCustomTheme] = useState<Theme | null>(null)
   const [brandColor, setBrandColor] = useState('#5CA8FF')
   const [deviceColor, setDeviceColor] = useState<'titanium' | 'black' | 'silver'>('titanium')
+  const [gradientStyle, setGradientStyle] = useState<GradientStyle>('diagonal')
   const [options, setOptions] = useState<{ line1: string; line2: string }[]>([])
   const [enabled, setEnabled] = useState<string[]>(allTargets.map((t) => t.id))
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -70,8 +71,9 @@ export function App() {
 
   const theme: Theme = useMemo(() => {
     const t = themeKey === 'custom' && customTheme ? customTheme : (PRESET_BY_KEY[themeKey]?.theme ?? PRESET_BY_KEY['brand-blue'].theme)
-    return { ...t, layout, deviceColor }
-  }, [themeKey, layout, customTheme, deviceColor])
+    const background = t.background.kind === 'synthetic' ? { ...t.background, style: gradientStyle } : t.background
+    return { ...t, background, layout, deviceColor }
+  }, [themeKey, layout, customTheme, deviceColor, gradientStyle])
   const active = slides.find((s) => s.id === activeId) || null
   const store = allTargets.find((t) => t.id === activeStore)!
 
@@ -448,6 +450,13 @@ export function App() {
                 onChange={(e) => { setBrandColor(e.target.value); setCustom(themeFromColors(e.target.value, darken(e.target.value, 0.42))) }} />
               <button className="btn sm" style={{ flex: 1 }} disabled={!active} onClick={matchScreenshot}>🎨 Match my screenshot</button>
             </div>
+            <label className="sublabel">Gradient style</label>
+            <div className="row" style={{ flexWrap: 'wrap' }}>
+              {(['diagonal', 'vertical', 'radial', 'conic', 'spotlight'] as const).map((gs) => (
+                <button key={gs} className={'tab' + (gradientStyle === gs ? ' active' : '')} style={{ textTransform: 'capitalize' }} disabled={theme.background.kind === 'mesh'} onClick={() => setGradientStyle(gs)}>{gs}</button>
+              ))}
+            </div>
+            {theme.background.kind === 'mesh' && <div className="muted" style={{ marginTop: 4 }}>Pick a non-mesh preset to use gradient styles.</div>}
           </div>
 
           <div className="section">

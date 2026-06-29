@@ -1,8 +1,10 @@
 export interface Rect { x: number; y: number; w: number; h: number }
 
 
+export type GradientStyle = 'diagonal' | 'vertical' | 'radial' | 'conic' | 'spotlight'
+
 export type BackgroundSpec =
-  | { kind: 'synthetic'; from: string; to: string; glow?: string; grain?: number }
+  | { kind: 'synthetic'; from: string; to: string; glow?: string; grain?: number; style?: GradientStyle }
   | { kind: 'mesh'; colors: string[]; grain?: number }
 
 export type Layout = 'headline-top' | 'headline-bottom'
