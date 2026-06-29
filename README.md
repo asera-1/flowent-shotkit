@@ -1,3 +1,5 @@
+> **Next.js + shadcn/ui rewrite (in progress):** the studio is being rebuilt on **Next.js 16 + Tailwind v4 + shadcn/ui** in [`web/`](./web), deploys to **Vercel**, and adds a **Product Hunt** gallery generator. The original engine (`src/`) and Vite studio (`studio/`) are kept in place as the 1:1 parity reference (git tag `pre-nextjs-rewrite`).
+
 # flowent-shotkit
 
 Turn raw app screenshots into store-ready **App Store / Google Play** screenshot kits —
