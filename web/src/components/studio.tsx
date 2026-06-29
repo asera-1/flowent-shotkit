@@ -18,7 +18,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 interface UISlide { id: string; name: string; url: string; line1: string; line2: string }
 interface PHCopy { kicker: string; line1: string; line2: string; sub: string; side: "left" | "right" }
@@ -264,12 +263,10 @@ export function Studio() {
     <div className="app">
       <div className="topbar">
         <div className="brand">flowent · <span>shotkit</span> studio</div>
-        <Tabs value={mode} onValueChange={(v) => setMode(v as "store" | "ph")}>
-          <TabsList>
-            <TabsTrigger value="store">Store kit</TabsTrigger>
-            <TabsTrigger value="ph">Product Hunt</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="inline-flex items-center gap-1 rounded-lg bg-secondary p-[3px]">
+          <Button size="sm" variant={mode === "store" ? "default" : "ghost"} className="h-7" onClick={() => setMode("store")}>Store kit</Button>
+          <Button size="sm" variant={mode === "ph" ? "default" : "ghost"} className="h-7" onClick={() => setMode("ph")}>Product Hunt</Button>
+        </div>
         <div className="muted">{slides.length} screen{slides.length === 1 ? "" : "s"}{mode === "store" ? ` · ${enabled.length} store${enabled.length === 1 ? "" : "s"}` : ""}</div>
         <div className="spacer" />
         {busy && <div className="muted">{busy}</div>}
