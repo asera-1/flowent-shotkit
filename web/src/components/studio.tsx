@@ -89,7 +89,7 @@ export function Studio() {
   const setPh = (id: string, patch: Partial<PHCopy>) => setPhMap((m) => ({ ...m, [id]: { ...phOf(id), ...patch } }))
   const phSpec = (s: UISlide): PHSpec => {
     const p = phOf(s.id)
-    return { screenshot: s.url, side: p.side, kicker: p.kicker || undefined, deviceColor,
+    return { screenshot: s.url, side: p.side, kicker: p.kicker || undefined, deviceColor, theme,
       head: [...(p.line1 ? [{ text: p.line1 }] : []), ...(p.line2 ? [{ text: p.line2, accent: true }] : [])],
       sub: p.sub || undefined }
   }
@@ -428,6 +428,18 @@ export function Studio() {
               <div className="section">
                 <h3>Device frame</h3>
                 <div className="row">{(["titanium", "black", "silver"] as const).map((c) => (<Pill key={c} active={deviceColor === c} className="flex-1 capitalize" onClick={() => setDeviceColor(c)}>{c}</Pill>))}</div>
+              </div>
+              <div className="section">
+                <h3>Background</h3>
+                <div className="swatches">{swatchList.map((p) => (
+                  <button key={p.key} aria-label={p.label} className={"swatch" + (p.key === themeKey ? " active" : "")} style={{ background: p.theme.background.kind === "mesh" ? `linear-gradient(135deg, ${p.theme.background.colors.join(", ")})` : `linear-gradient(135deg, ${p.theme.background.from}, ${p.theme.background.to})` }} onClick={() => setThemeKey(p.key)}><span style={{ color: p.theme.headlineColor }}>{p.label}</span></button>
+                ))}</div>
+                <div className="row" style={{ marginTop: 10, alignItems: "center" }}>
+                  <input type="color" className="color-in" aria-label="Brand color" value={brandColor} onChange={(e) => { setBrandColor(e.target.value); setCustom(themeFromColors(e.target.value, darken(e.target.value, 0.42))) }} />
+                  <Button size="sm" variant="outline" className="flex-1" disabled={!active} onClick={matchScreenshot}>🎨 Match my screenshot</Button>
+                </div>
+                <label className="sublabel">Gradient style</label>
+                <div className="row" style={{ flexWrap: "wrap" }}>{(["diagonal", "vertical", "radial", "conic", "spotlight"] as const).map((gs) => (<Pill key={gs} active={gradientStyle === gs} className="capitalize" disabled={theme.background.kind === "mesh"} onClick={() => setGradientStyle(gs)}>{gs}</Pill>))}</div>
               </div>
               <div className="section"><div className="muted">Product Hunt gallery images are 1270 × 760. Each screen becomes one landscape image with your copy; Export Product Hunt zips them all.</div></div>
             </>

@@ -41,6 +41,9 @@ export const PRESETS: Preset[] = [
   { key: 'candy', label: 'Candy', theme: { ...base,
     headlineColor: '#3A1430', gradient: ['#D7387F', '#7A4FE0'],
     background: { kind: 'mesh', colors: ['#ffc7e6', '#ffd9b0', '#c7d0ff', '#ffe0ec', '#e0c7ff'], grain: 6 } } },
+  { key: 'midnight', label: 'Midnight', theme: { ...base,
+    headlineColor: '#F4F8FF', gradient: ['#46D6F5', '#2F7BFF'],
+    background: { kind: 'synthetic', from: '#0a1320', to: '#22469c', glow: 'rgba(74,128,235,0.30)', grain: 7 } } },
 ]
 
 export const PRESET_BY_KEY: Record<string, Preset> = Object.fromEntries(PRESETS.map((p) => [p.key, p]))
